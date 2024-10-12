@@ -10,16 +10,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Activity, Wifi, ArrowDown, ArrowUp } from "lucide-react";
+import { Activity, Wifi, ArrowDown, ArrowUp, AlertCircle } from "lucide-react";
 
 export default function Component() {
   const [downloadSpeed, setDownloadSpeed] = useState(0);
   const [uploadSpeed, setUploadSpeed] = useState(0);
+  const [ping, setPing] = useState<number | null>(null);
+  const [jitter, setJitter] = useState<number | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [ipAddress, setIpAddress] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState(false);
+
   const downloadControls = useAnimation();
   const uploadControls = useAnimation();
 
+  // Fetch IP address
   useEffect(() => {
     const fetchIpAddress = async () => {
       try {
@@ -31,73 +36,107 @@ export default function Component() {
         setIpAddress("Unable to fetch IP");
       }
     };
-
     fetchIpAddress();
   }, []);
 
+  // Measure Ping and Jitter after download completes
+  const measurePingAndJitter = async () => {
+    const pingTimes: number[] = [];
+    try {
+      for (let i = 0; i < 5; i++) {
+        const start = performance.now();
+        await fetch("https://speed.cloudflare.com/__down?bytes=1", {
+          cache: "no-store",
+        });
+        const end = performance.now();
+        pingTimes.push(end - start);
+      }
+
+      const avgPing = pingTimes.reduce((a, b) => a + b, 0) / pingTimes.length;
+
+      // Calculate jitter (average difference between consecutive pings)
+      let jitterSum = 0;
+      for (let i = 1; i < pingTimes.length; i++) {
+        jitterSum += Math.abs(pingTimes[i] - pingTimes[i - 1]);
+      }
+      const avgJitter = jitterSum / (pingTimes.length - 1);
+
+      setPing(parseFloat(avgPing.toFixed(2)));
+      setJitter(parseFloat(avgJitter.toFixed(2)));
+    } catch (error) {
+      console.error("Ping/Jitter test failed:", error);
+      setPing(0);
+      setJitter(0);
+    }
+  };
+
+  // Main function to measure network speed
   const measureNetworkSpeed = async () => {
+    setConnectionError(false);
     setIsTesting(true);
     setDownloadSpeed(0);
     setUploadSpeed(0);
+    setPing(null);
+    setJitter(null);
+
     downloadControls.start({ rotate: -135 });
     uploadControls.start({ rotate: -135 });
 
-    const fileSize = 5 * 1024 * 1024; // 5MB
-    const testFile = "https://speed.cloudflare.com/__down?bytes=5000000"; // Cloudflare speed test file
+    const fileSize = 5 * 1024 * 1024; // 5MB test file
+    const testFile = "https://speed.cloudflare.com/__down?bytes=5000000";
 
-    // Download speed test
-    const downloadStartTime = performance.now();
+    if (!navigator.onLine) {
+      setConnectionError(true);
+      setIsTesting(false);
+      return;
+    }
+
     try {
-      const response = await fetch(testFile);
-      if (!response.ok) throw new Error("Network response was not ok");
-      await response.arrayBuffer();
-
+      // Download Speed Test
+      const downloadStartTime = performance.now();
+      const downloadResponse = await fetch(testFile);
+      await downloadResponse.arrayBuffer();
       const downloadEndTime = performance.now();
-      const downloadDurationInSeconds =
-        (downloadEndTime - downloadStartTime) / 1000;
       const downloadSpeedMbps =
-        (fileSize / downloadDurationInSeconds / 1024 / 1024) * 8;
+        (fileSize /
+          ((downloadEndTime - downloadStartTime) / 1000) /
+          1024 /
+          1024) *
+        8;
 
       setDownloadSpeed(downloadSpeedMbps);
       downloadControls.start({
         rotate: Math.min(downloadSpeedMbps * 2.7 - 135, 135),
       });
-    } catch (error) {
-      console.error("Error during download speed test:", error);
-      setDownloadSpeed(0);
-    }
 
-    // Simulated upload speed test
-    const uploadStartTime = performance.now();
-    try {
-      // Simulate upload by waiting for a random duration
-      await new Promise((resolve) =>
-        setTimeout(resolve, Math.random() * 2000 + 1000)
-      );
+      // Measure ping and jitter after download completes
+      await measurePingAndJitter();
 
+      // Upload Speed Test
+      const uploadStartTime = performance.now();
+      const uploadChunk = new Blob([new ArrayBuffer(fileSize)]);
+      await fetch("https://httpbin.org/post", {
+        method: "POST",
+        body: uploadChunk,
+      });
       const uploadEndTime = performance.now();
-      const uploadDurationInSeconds = (uploadEndTime - uploadStartTime) / 1000;
       const uploadSpeedMbps =
-        (fileSize / uploadDurationInSeconds / 1024 / 1024) * 8;
+        (fileSize / ((uploadEndTime - uploadStartTime) / 1000) / 1024 / 1024) *
+        8;
 
       setUploadSpeed(uploadSpeedMbps);
       uploadControls.start({
         rotate: Math.min(uploadSpeedMbps * 2.7 - 135, 135),
       });
     } catch (error) {
-      console.error("Error during upload speed test:", error);
-      setUploadSpeed(0);
+      console.error("Network test failed:", error);
+      setConnectionError(true);
     }
 
     setIsTesting(false);
   };
 
-  const getSpeedColor = (speed: number) => {
-    if (speed < 10) return "#ef4444";
-    if (speed < 30) return "#eab308";
-    return "#22c55e";
-  };
-
+  // Speedometer Component
   const Speedometer = ({
     speed,
     controls,
@@ -118,45 +157,38 @@ export default function Component() {
             cy="100"
             r="90"
             fill="none"
-            stroke="#4b5563"
-            strokeWidth="20"
+            stroke="#374151"
+            strokeWidth="15"
           />
           <motion.path
             d="M100 10 A90 90 0 0 1 190 100"
             fill="none"
-            stroke="url(#gradient)"
-            strokeWidth="20"
+            stroke="#4ADE80"
+            strokeWidth="15"
             strokeLinecap="round"
             initial={{ pathLength: 0 }}
             animate={{ pathLength: Math.min(speed / 100, 1) }}
             transition={{ duration: 0.5, ease: "easeOut" }}
           />
-          <defs>
-            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#22c55e" />
-              <stop offset="50%" stopColor="#eab308" />
-              <stop offset="100%" stopColor="#ef4444" />
-            </linearGradient>
-          </defs>
           <motion.line
             x1="100"
             y1="100"
             x2="100"
             y2="20"
-            stroke="#f3f4f6"
+            stroke="#E5E7EB"
             strokeWidth="4"
             initial={{ rotate: -135 }}
             animate={controls}
             transition={{ type: "spring", stiffness: 60, damping: 10 }}
             style={{ originX: "100px", originY: "100px" }}
           />
-          <circle cx="100" cy="100" r="10" fill="#f3f4f6" />
+          <circle cx="100" cy="100" r="10" fill="#E5E7EB" />
           <motion.text
             x="100"
             y="140"
             textAnchor="middle"
             fontSize="24"
-            fill={getSpeedColor(speed)}
+            fill="#FFFFFF"
             fontWeight="bold"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -169,12 +201,12 @@ export default function Component() {
             y="160"
             textAnchor="middle"
             fontSize="14"
-            fill="#9ca3af"
+            fill="#9CA3AF"
           >
             Mbps
           </text>
         </svg>
-        <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+        <div className="absolute inset-0 flex items-center justify-center">
           {icon}
         </div>
       </div>
@@ -182,18 +214,26 @@ export default function Component() {
   );
 
   return (
-    <Card className="bg-gradient-to-br from-gray-900 to-gray-800 text-white h-[710px]">
+    <Card className="bg-gray-800 text-white shadow-lg p-6 rounded-lg h-[710px]">
       <CardHeader>
-        <CardTitle className="text-2xl font-bold text-center flex items-center justify-center">
+        <CardTitle className="text-2xl font-bold text-center">
           <Activity className="mr-2" />
           Network Speed Test
         </CardTitle>
-        <div className="text-center text-sm text-gray-400 flex items-center justify-center">
+        <div className="text-center text-sm text-gray-400 mt-2">
           <Wifi className="mr-1" size={16} />
           {ipAddress ? `Your IP: ${ipAddress}` : "Fetching IP..."}
         </div>
       </CardHeader>
-      <CardContent className="flex justify-around items-center mt-20">
+
+      {connectionError && (
+        <div className="flex items-center justify-center mt-4 text-red-500">
+          <AlertCircle className="mr-2" />
+          Connection lost. Please check your internet.
+        </div>
+      )}
+
+      <CardContent className="flex justify-around items-center mt-10">
         <Speedometer
           speed={downloadSpeed}
           controls={downloadControls}
@@ -207,17 +247,25 @@ export default function Component() {
           label="Upload"
         />
       </CardContent>
-      <CardFooter className="flex justify-center mt-32">
+
+      {ping !== null && jitter !== null && (
+        <div className="mt-6 text-center flex justify-center space-x-6">
+          <div>Ping: {ping} ms</div>
+          <div>Jitter: {jitter} ms</div>
+        </div>
+      )}
+
+      <CardFooter className="mt-10 flex flex-col items-center">
         <Button
           onClick={measureNetworkSpeed}
           disabled={isTesting}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg"
         >
           {isTesting ? "Testing..." : "Start Test"}
         </Button>
       </CardFooter>
-      <div className="flex justify-center mt-20">
-        Copyright (c) 2024 Saqib  All Rights Reserved.
+      <div className="flex justify-center mt-24">
+        Copyright (c) 2024 Saqib All Rights Reserved.
       </div>
     </Card>
   );
