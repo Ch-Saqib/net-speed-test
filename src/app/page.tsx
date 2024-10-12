@@ -238,8 +238,8 @@ export default function Component() {
           {isTesting ? "Testing..." : "Start Test"}
         </Button>
       </CardFooter>
-      <div className="flex justify-center mt-10 sm:mt-24">
-        Copyright (c) 2024 Saqib All Rights Reserved.
+      <div className="flex justify-center text-center mt-10 sm:mt-24">
+        © Copyright 2024 Saqib, Inc.
       </div>
     </Card>
   );
