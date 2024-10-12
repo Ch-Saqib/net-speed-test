@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, useAnimation } from "framer-motion";
+import { motion, useAnimation, AnimationControls } from "framer-motion"; // Properly import types
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,6 +11,71 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Activity, Wifi, ArrowDown, ArrowUp, AlertCircle } from "lucide-react";
+import React from "react";
+
+// 1. Define the SpeedometerProps type
+type SpeedometerProps = {
+  speed: number;
+  controls: AnimationControls; // Use proper typing from framer-motion
+  icon: React.ReactNode;
+  label: string;
+};
+
+const Speedometer: React.FC<SpeedometerProps> = ({
+  speed,
+  controls,
+  icon,
+  label,
+}) => (
+  <div className="flex flex-col items-center">
+    <div className="text-lg sm:text-xl font-semibold mb-2">{label}</div>
+    <div className="relative w-32 h-32 sm:w-40 sm:h-40">
+      <svg viewBox="0 0 200 200" className="w-full h-full">
+        <circle cx="100" cy="100" r="90" fill="none" stroke="#374151" strokeWidth="15" />
+        <motion.path
+          d="M100 10 A90 90 0 0 1 190 100"
+          fill="none"
+          stroke="#4ADE80"
+          strokeWidth="15"
+          strokeLinecap="round"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: Math.min(speed / 100, 1) }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        />
+        <motion.line
+          x1="100"
+          y1="100"
+          x2="100"
+          y2="20"
+          stroke="#E5E7EB"
+          strokeWidth="4"
+          initial={{ rotate: -135 }}
+          animate={controls}
+          transition={{ type: "spring", stiffness: 60, damping: 10 }}
+          style={{ originX: "100px", originY: "100px" }}
+        />
+        <circle cx="100" cy="100" r="10" fill="#E5E7EB" />
+        <motion.text
+          x="100"
+          y="140"
+          textAnchor="middle"
+          fontSize="24"
+          fill="#FFFFFF"
+          fontWeight="bold"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          {speed.toFixed(1)}
+        </motion.text>
+        <text x="100" y="160" textAnchor="middle" fontSize="14" fill="#9CA3AF">
+          Mbps
+        </text>
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">{icon}</div>
+    </div>
+  </div>
+);
 
 export default function Component() {
   const [downloadSpeed, setDownloadSpeed] = useState(0);
@@ -21,10 +86,10 @@ export default function Component() {
   const [ipAddress, setIpAddress] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState(false);
 
-  const downloadControls = useAnimation();
-  const uploadControls = useAnimation();
+  // Properly typed AnimationControls from framer-motion
+  const downloadControls: AnimationControls = useAnimation();
+  const uploadControls: AnimationControls = useAnimation();
 
-  // Fetch IP address
   useEffect(() => {
     const fetchIpAddress = async () => {
       try {
@@ -39,7 +104,6 @@ export default function Component() {
     fetchIpAddress();
   }, []);
 
-  // Measure Ping and Jitter after download completes
   const measurePingAndJitter = async () => {
     const pingTimes: number[] = [];
     try {
@@ -54,7 +118,6 @@ export default function Component() {
 
       const avgPing = pingTimes.reduce((a, b) => a + b, 0) / pingTimes.length;
 
-      // Calculate jitter (average difference between consecutive pings)
       let jitterSum = 0;
       for (let i = 1; i < pingTimes.length; i++) {
         jitterSum += Math.abs(pingTimes[i] - pingTimes[i - 1]);
@@ -70,7 +133,6 @@ export default function Component() {
     }
   };
 
-  // Main function to measure network speed
   const measureNetworkSpeed = async () => {
     setConnectionError(false);
     setIsTesting(true);
@@ -82,7 +144,7 @@ export default function Component() {
     downloadControls.start({ rotate: -135 });
     uploadControls.start({ rotate: -135 });
 
-    const fileSize = 5 * 1024 * 1024; // 5MB test file
+    const fileSize = 5 * 1024 * 1024;
     const testFile = "https://speed.cloudflare.com/__down?bytes=5000000";
 
     if (!navigator.onLine) {
@@ -92,16 +154,12 @@ export default function Component() {
     }
 
     try {
-      // Download Speed Test
       const downloadStartTime = performance.now();
       const downloadResponse = await fetch(testFile);
       await downloadResponse.arrayBuffer();
       const downloadEndTime = performance.now();
       const downloadSpeedMbps =
-        (fileSize /
-          ((downloadEndTime - downloadStartTime) / 1000) /
-          1024 /
-          1024) *
+        (fileSize / ((downloadEndTime - downloadStartTime) / 1000) / 1024 / 1024) *
         8;
 
       setDownloadSpeed(downloadSpeedMbps);
@@ -109,10 +167,8 @@ export default function Component() {
         rotate: Math.min(downloadSpeedMbps * 2.7 - 135, 135),
       });
 
-      // Measure ping and jitter after download completes
       await measurePingAndJitter();
 
-      // Upload Speed Test
       const uploadStartTime = performance.now();
       const uploadChunk = new Blob([new ArrayBuffer(fileSize)]);
       await fetch("https://httpbin.org/post", {
@@ -121,8 +177,7 @@ export default function Component() {
       });
       const uploadEndTime = performance.now();
       const uploadSpeedMbps =
-        (fileSize / ((uploadEndTime - uploadStartTime) / 1000) / 1024 / 1024) *
-        8;
+        (fileSize / ((uploadEndTime - uploadStartTime) / 1000) / 1024 / 1024) * 8;
 
       setUploadSpeed(uploadSpeedMbps);
       uploadControls.start({
@@ -136,87 +191,10 @@ export default function Component() {
     setIsTesting(false);
   };
 
-  // Speedometer Component
-  const Speedometer = ({
-    speed,
-    controls,
-    icon,
-    label,
-  }: {
-    speed: number;
-    controls: any;
-    icon: React.ReactNode;
-    label: string;
-  }) => (
-    <div className="flex flex-col items-center">
-      <div className="text-lg font-semibold mb-2">{label}</div>
-      <div className="relative w-40 h-40">
-        <svg viewBox="0 0 200 200" className="w-full h-full">
-          <circle
-            cx="100"
-            cy="100"
-            r="90"
-            fill="none"
-            stroke="#374151"
-            strokeWidth="15"
-          />
-          <motion.path
-            d="M100 10 A90 90 0 0 1 190 100"
-            fill="none"
-            stroke="#4ADE80"
-            strokeWidth="15"
-            strokeLinecap="round"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: Math.min(speed / 100, 1) }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-          />
-          <motion.line
-            x1="100"
-            y1="100"
-            x2="100"
-            y2="20"
-            stroke="#E5E7EB"
-            strokeWidth="4"
-            initial={{ rotate: -135 }}
-            animate={controls}
-            transition={{ type: "spring", stiffness: 60, damping: 10 }}
-            style={{ originX: "100px", originY: "100px" }}
-          />
-          <circle cx="100" cy="100" r="10" fill="#E5E7EB" />
-          <motion.text
-            x="100"
-            y="140"
-            textAnchor="middle"
-            fontSize="24"
-            fill="#FFFFFF"
-            fontWeight="bold"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-          >
-            {speed.toFixed(1)}
-          </motion.text>
-          <text
-            x="100"
-            y="160"
-            textAnchor="middle"
-            fontSize="14"
-            fill="#9CA3AF"
-          >
-            Mbps
-          </text>
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          {icon}
-        </div>
-      </div>
-    </div>
-  );
-
   return (
-    <Card className="bg-gray-800 text-white shadow-lg p-6 rounded-lg h-[710px]">
+    <Card className="bg-gray-800 text-white shadow-lg p-6 rounded-lg max-w-4xl mx-auto h-auto">
       <CardHeader>
-        <CardTitle className="text-2xl font-bold text-center">
+        <CardTitle className="text-xl sm:text-2xl font-bold text-center">
           <Activity className="mr-2" />
           Network Speed Test
         </CardTitle>
@@ -225,15 +203,13 @@ export default function Component() {
           {ipAddress ? `Your IP: ${ipAddress}` : "Fetching IP..."}
         </div>
       </CardHeader>
-
       {connectionError && (
         <div className="flex items-center justify-center mt-4 text-red-500">
           <AlertCircle className="mr-2" />
           Connection lost. Please check your internet.
         </div>
       )}
-
-      <CardContent className="flex justify-around items-center mt-10">
+      <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-8 mt-10">
         <Speedometer
           speed={downloadSpeed}
           controls={downloadControls}
@@ -247,14 +223,12 @@ export default function Component() {
           label="Upload"
         />
       </CardContent>
-
       {ping !== null && jitter !== null && (
         <div className="mt-6 text-center flex justify-center space-x-6">
           <div>Ping: {ping} ms</div>
           <div>Jitter: {jitter} ms</div>
         </div>
       )}
-
       <CardFooter className="mt-10 flex flex-col items-center">
         <Button
           onClick={measureNetworkSpeed}
@@ -264,7 +238,7 @@ export default function Component() {
           {isTesting ? "Testing..." : "Start Test"}
         </Button>
       </CardFooter>
-      <div className="flex justify-center mt-24">
+      <div className="flex justify-center mt-10 sm:mt-24">
         Copyright (c) 2024 Saqib All Rights Reserved.
       </div>
     </Card>
