@@ -213,13 +213,13 @@ export default function Component() {
         <Speedometer
           speed={downloadSpeed}
           controls={downloadControls}
-          icon={<ArrowDown size={24} className="text-blue-400" />}
+          icon={<ArrowDown size={24} className="text-blue-400 -mt-10" />}
           label="Download"
         />
         <Speedometer
           speed={uploadSpeed}
           controls={uploadControls}
-          icon={<ArrowUp size={24} className="text-green-400" />}
+          icon={<ArrowUp size={24} className="text-green-400 -mt-10" />}
           label="Upload"
         />
       </CardContent>
